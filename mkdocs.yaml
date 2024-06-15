@@ -1,0 +1,39 @@
+site_name: Mercury
+
+plugins:
+    - search
+    - your-plugin
+theme:
+  name: material
+  nav: null
+  features:
+    # - content.action.edit
+    # - content.action.view
+    - content.code.annotate
+    - content.code.annotation
+    - content.code.copy
+    - content.tabs.link
+    - header.autohide
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.integrate
+  language: en
+markdown_extensions:
+  - attr_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.snippets:
+      base_path: [!relative $config_dir]
+      check_paths: true
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+

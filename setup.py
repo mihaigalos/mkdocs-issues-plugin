@@ -13,7 +13,8 @@ setup(
     license='MIT',
     python_requires='>=2.7',
     install_requires=[
-        'mkdocs>=1.0.4'
+        'mkdocs>=1.0.4',
+        'mkdocs-material'
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from mkdocs import utils as mkdocs_utils
 from mkdocs.config import config_options, Config
 from mkdocs.plugins import BasePlugin
+from mkdocs.structure.nav import get_navigation
+
 
 class YourPlugin(BasePlugin):
 
@@ -13,55 +15,48 @@ class YourPlugin(BasePlugin):
         ('param', config_options.Type(str, default='')),
     )
 
-    def __init__(self):
-        self.enabled = True
-        self.total_time = 0
-
-    def on_serve(self, server):
-        return server
-
-    def on_pre_build(self, config):
-        return
-
-    def on_files(self, files, config):
-        return files
-
-    def on_nav(self, nav, config, files):
-        return nav
-
-    def on_env(self, env, config, files):
-        return env
-    
-    def on_config(self, config):
+    def on_config(self, config, **kwargs):
         return config
 
-    def on_post_build(self, config):
-        return
-
-    def on_pre_template(self, template, template_name, config):
-        return template
-
-    def on_template_context(self, context, template_name, config):
-        return context
-    
-    def on_post_template(self, output_content, template_name, config):
-        return output_content
-    
-    def on_pre_page(self, page, config, files):
-        return page
-
-    def on_page_read_source(self, page, config):
-        return ""
-
-    def on_page_markdown(self, markdown, page, config, files):
-        return markdown
-
-    def on_page_content(self, html, page, config, files):
-        return html
+    def on_page_markdown(self, markdown, page, config, files, **kwargs):
+        #markdown = "[up](../../my_k8s)\n" + markdown
+        rest = page.url[:-1]
+        count = rest.count("/")
+        pos_start_substring = 0
+        breadcrumbs = ""
+        if count >= 2:
+            print(page)
+            while count > 0:
+                pos_slash = rest.find("/", pos_start_substring+1)
+                ref_name  = rest[pos_start_substring:pos_slash]
+                ref_location  = rest[:pos_slash]
+                if len(breadcrumbs) > 0:
+                    breadcrumbs += " > "
+                breadcrumbs = breadcrumbs + f"[{ref_name}](/{ref_location}/{ref_name}/)"
+                pos_start_substring = pos_slash + 1
+                count -= 1
+                print(breadcrumbs)
+        return breadcrumbs + "\n" + markdown
 
     def on_page_context(self, context, page, config, nav):
-        return context
+        pass
 
-    def on_post_page(self, output_content, page, config):
-        return output_content
+
+        #breadcrumbs = self.generate_breadcrumbs(nav, page, config)
+        #context['breadcrumbs'] = breadcrumbs
+
+    def generate_breadcrumbs(self, nav, page, config):
+        breadcrumbs = []
+        for e in nav:
+            if e.is_page:
+                print(e)
+
+            #if page.file.src_path == section.file.src_path:
+            breadcrumbs.append({'title': page.file.src_path, 'url': config['site_url'] + '/' + page.file.src_path})
+               #parent_section = section.parent
+               #while parent_section:
+               #    breadcrumbs.insert(0, {'title': parent_section.title, 'url': config['site_url'] + '/' + parent_section.file.src_path})
+               #    parent_section = parent_section.parent
+               #break
+        return breadcrumbs
 
