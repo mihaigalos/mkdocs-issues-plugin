@@ -19,12 +19,12 @@ class YourPlugin(BasePlugin):
         return config
 
     def on_page_markdown(self, markdown, page, config, files, **kwargs):
-        #markdown = "[up](../../my_k8s)\n" + markdown
         rest = page.url[:-1]
         count = rest.count("/")
         pos_start_substring = 0
         breadcrumbs = ""
-        if count >= 2:
+        depth = 0
+        if count > 2:
             print(page)
             while count > 0:
                 pos_slash = rest.find("/", pos_start_substring+1)
@@ -32,31 +32,11 @@ class YourPlugin(BasePlugin):
                 ref_location  = rest[:pos_slash]
                 if len(breadcrumbs) > 0:
                     breadcrumbs += " > "
-                breadcrumbs = breadcrumbs + f"[{ref_name}](/{ref_location}/{ref_name}/)"
+                if depth > 0:
+                    breadcrumbs = breadcrumbs + f"[{ref_name}](/{ref_location}/{ref_name}/)"
                 pos_start_substring = pos_slash + 1
                 count -= 1
+                depth += 1
                 print(breadcrumbs)
         return breadcrumbs + "\n" + markdown
-
-    def on_page_context(self, context, page, config, nav):
-        pass
-
-
-        #breadcrumbs = self.generate_breadcrumbs(nav, page, config)
-        #context['breadcrumbs'] = breadcrumbs
-
-    def generate_breadcrumbs(self, nav, page, config):
-        breadcrumbs = []
-        for e in nav:
-            if e.is_page:
-                print(e)
-
-            #if page.file.src_path == section.file.src_path:
-            breadcrumbs.append({'title': page.file.src_path, 'url': config['site_url'] + '/' + page.file.src_path})
-               #parent_section = section.parent
-               #while parent_section:
-               #    breadcrumbs.insert(0, {'title': parent_section.title, 'url': config['site_url'] + '/' + parent_section.file.src_path})
-               #    parent_section = parent_section.parent
-               #break
-        return breadcrumbs
 
