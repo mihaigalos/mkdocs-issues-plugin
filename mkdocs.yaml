@@ -2,7 +2,8 @@ site_name: Mercury
 
 plugins:
     - search
-    - your-plugin
+    - your-plugin:
+        start_depth: 2
 theme:
   name: material
   nav: null

@@ -12,10 +12,12 @@ from mkdocs.structure.nav import get_navigation
 class YourPlugin(BasePlugin):
 
     config_scheme = (
-        ('param', config_options.Type(str, default='')),
+        ('start_depth', config_options.Type(int, default=2)),
     )
 
     def on_config(self, config, **kwargs):
+        print(self.config.get("param"))
+        print("----------")
         return config
 
     def on_page_markdown(self, markdown, page, config, files, **kwargs):
@@ -24,7 +26,7 @@ class YourPlugin(BasePlugin):
         pos_start_substring = 0
         breadcrumbs = ""
         depth = 0
-        if count > 2:
+        if count > self.config.get("start_depth"):
             print(page)
             while count > 0:
                 pos_slash = rest.find("/", pos_start_substring+1)
