@@ -7,7 +7,7 @@ setup(
     description='Location-based breadcrumbs.',
     long_description='Location-based breadcrumbs.',
     keywords='mkdocs',
-    url='',
+    url='https://github.com/mihaigalos/mkdocs-breadcrumbs',
     author='Mihai Galos',
     author_email='mihai@galos.one',
     license='MIT',
