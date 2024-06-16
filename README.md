@@ -2,13 +2,15 @@
 
 Experimental mkdocs location-based breadcrumbs navigation.
 
-This directly get prepended to rendered Markdown.
+These directly get prepended to rendered Markdown.
 
 ## Setup
 
 Install the plugin using pip:
 
+```bash
 pip install mkdocs-breadcrumbs
+```
 
 Activate the plugin in `mkdocs.yml`:
 ```yaml
