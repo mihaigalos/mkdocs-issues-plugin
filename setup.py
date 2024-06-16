@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mkdocs-breadcrumbs',
-    version='0.0.1',
+    version='0.0.2',
     description='Location-based breadcrumbs.',
     long_description='Location-based breadcrumbs.',
     keywords='mkdocs',
