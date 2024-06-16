@@ -2,16 +2,16 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name='mkdocs-your-plugin',
+    name='mkdocs-breadcrumbs',
     version='0.1.0',
-    description='A MkDocs plugin',
+    description='Location-based breadcrumbs.',
     long_description='',
     keywords='mkdocs',
     url='',
-    author='Your Name',
-    author_email='your email',
+    author='Mihai Galos',
+    author_email='mihai@galos.one',
     license='MIT',
-    python_requires='>=2.7',
+    python_requires='>=3',
     install_requires=[
         'mkdocs>=1.0.4',
         'mkdocs-material'
@@ -31,7 +31,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'mkdocs.plugins': [
-            'your-plugin = mkdocs_your_plugin.plugin:YourPlugin'
+            'breadcrumbs = mkdocs_breadcrumbs.plugin:BreadCrumbs'
         ]
     }
 )

@@ -9,16 +9,11 @@ from mkdocs.plugins import BasePlugin
 from mkdocs.structure.nav import get_navigation
 
 
-class YourPlugin(BasePlugin):
+class BreadCrumbs(BasePlugin):
 
     config_scheme = (
         ('start_depth', config_options.Type(int, default=2)),
     )
-
-    def on_config(self, config, **kwargs):
-        print(self.config.get("param"))
-        print("----------")
-        return config
 
     def on_page_markdown(self, markdown, page, config, files, **kwargs):
         rest = page.url[:-1]

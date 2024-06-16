@@ -2,7 +2,7 @@ site_name: Mercury
 
 plugins:
     - search
-    - your-plugin:
+    - breadcrumbs:
         start_depth: 2
 theme:
   name: material
