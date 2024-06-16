@@ -4,6 +4,8 @@ Experimental mkdocs location-based breadcrumbs navigation.
 
 These directly get prepended to rendered Markdown.
 
+![example](screenshots/breadcrumbs.png)
+
 ## Setup
 
 Install the plugin using pip:
