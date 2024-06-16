@@ -4,13 +4,13 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='mkdocs-breadcrumbs',
+    name='mkdocs-breadcrumbs-plugin',
     version='0.0.3',
-    description='Location-based breadcrumbs.',
+    description='Location-based breadcrumbs plugin for mkdocs.',
     long_description=long_description,
     long_description_content_type="text/markdown",
     keywords='mkdocs plugin',
-    url='https://github.com/mihaigalos/mkdocs-breadcrumbs',
+    url='https://github.com/mihaigalos/mkdocs-breadcrumbs-plugin',
     author='Mihai Galos',
     author_email='mihai@galos.one',
     license='MIT',
@@ -32,7 +32,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'mkdocs.plugins': [
-            'breadcrumbs = mkdocs_breadcrumbs.plugin:BreadCrumbs'
+            'breadcrumbs = mkdocs_breadcrumbs_plugin.plugin:BreadCrumbs'
         ]
     }
 )
