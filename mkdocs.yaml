@@ -1,4 +1,4 @@
-site_name: Mercury
+site_name: One
 
 plugins:
     - search
@@ -8,8 +8,6 @@ theme:
   name: material
   nav: null
   features:
-    # - content.action.edit
-    # - content.action.view
     - content.code.annotate
     - content.code.annotation
     - content.code.copy

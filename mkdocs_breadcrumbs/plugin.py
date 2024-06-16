@@ -22,7 +22,6 @@ class BreadCrumbs(BasePlugin):
         breadcrumbs = ""
         depth = 0
         if count > self.config.get("start_depth"):
-            print(page)
             while count > 0:
                 pos_slash = rest.find("/", pos_start_substring+1)
                 ref_name  = rest[pos_start_substring:pos_slash]
@@ -34,6 +33,5 @@ class BreadCrumbs(BasePlugin):
                 pos_start_substring = pos_slash + 1
                 count -= 1
                 depth += 1
-                print(breadcrumbs)
         return breadcrumbs + "\n" + markdown
 
