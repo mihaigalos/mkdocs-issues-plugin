@@ -1,36 +1,23 @@
-# mkdocs-plugin-template
+# mkdocs-breadcrumbs
 
-This is a template for a MkDocs plugin.
+Experimental mkdocs location-based breadcrumbs navigation.
+
+This directly get prepended to rendered Markdown.
 
 ## Setup
 
 Install the plugin using pip:
 
-`pip install mkdocs-your-plugin-name`
+pip install mkdocs-breadcrumbs
 
 Activate the plugin in `mkdocs.yml`:
 ```yaml
 plugins:
   - search
-  - your-plugin-name
+  - breadcrumbs
 ```
-
-> **Note:** If you have no `plugins` entry in your config file yet, you'll likely also want to add the `search` plugin. MkDocs enables it by default if there is no `plugins` entry set, but now you have to enable it explicitly.
-
-More information about plugins in the [MkDocs documentation][mkdocs-plugins].
 
 ## Config
 
-* `param` - This does something
+* `start_depth` - An int representing at which depth the plugin is running the logic. The depth represents the number of slashes in a URL path (i.e.: /home/ has depth 2). 
 
-## Usage
-
-## See Also
-
-More information about templates [here][mkdocs-template].
-
-More information about blocks [here][mkdocs-block].
-
-[mkdocs-plugins]: http://www.mkdocs.org/user-guide/plugins/
-[mkdocs-template]: https://www.mkdocs.org/user-guide/custom-themes/#template-variables
-[mkdocs-block]: https://www.mkdocs.org/user-guide/styling-your-docs/#overriding-template-blocks
