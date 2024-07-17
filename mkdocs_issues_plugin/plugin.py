@@ -1,4 +1,6 @@
 import re
+import os
+import re
 import requests
 from mkdocs.plugins import BasePlugin
 from mkdocs.config import config_options
@@ -10,6 +12,12 @@ class Issues(BasePlugin):
         ('github_api_url', config_options.Type(str, required=True)),
         ('github_token', config_options.Type(str, default='')),
     )
+
+    def on_config(self, config, **kwargs):
+        github_token = self.config['github_token']
+        if github_token.startswith('$'):
+            env_var = github_token[1:]
+            self.config['github_token'] = os.getenv(env_var, '')
 
     def on_page_markdown(self, markdown, **kwargs):
         base_url = self.config['github_base_url']
