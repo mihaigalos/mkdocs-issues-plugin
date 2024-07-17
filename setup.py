@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='mkdocs-issues-plugin',
-    version='0.0.1',
+    version='0.0.3',
     description='Issues status and labels in mkdocs.',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -17,7 +17,8 @@ setup(
     python_requires='>=3.8',
     install_requires=[
         'mkdocs>=1.0.4',
-        'mkdocs-material'
+        'mkdocs-material',
+        'requests'
     ],
     classifiers=[
         "Operating System :: OS Independent",
@@ -36,3 +37,4 @@ setup(
         ]
     }
 )
+
