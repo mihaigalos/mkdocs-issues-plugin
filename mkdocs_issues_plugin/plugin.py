@@ -161,7 +161,7 @@ class Issues(BasePlugin):
                     owner, repo, number = match.groups()
                     self.logger.debug(f"Processing {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number}")
                     status, labels, title = fetch_status_fn(owner, repo, number)
-                    status_icon = icon_map.get(status, '🔴')
+                    status_icon = icon_map.get(status, '')
                     status_title = status.capitalize() if status in icon_map else 'Closed'
                     labels_str = ''.join(
                         f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
@@ -183,9 +183,9 @@ class Issues(BasePlugin):
                     self.logger.debug(f"Processed {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number} with status: {status}")
 
             # Process issues
-            process_matches(issue_pattern, fetch_issue_status, {'open': '🟢', 'closed': '🔴'})
+            process_matches(issue_pattern, fetch_issue_status, {'open': ISSUE_ICONS['open'], 'closed': ISSUE_ICONS['closed']})
             # Process PRs
-            process_matches(pr_pattern, fetch_pr_status, {'open': '🟢', 'merged': '🟣', 'draft': '🟠', 'closed': '🔴'},
+            process_matches(pr_pattern, fetch_pr_status, {'open': PR_ICONS['open'], 'merged': PR_ICONS['merged'], 'draft': PR_ICONS['draft'], 'closed': PR_ICONS['closed']},
                             link_suffix_transform_fn=(lambda link: link.replace('/-/merge_requests/', '/merge_requests/')) if service == 'gitlab' else None)
 
         return markdown
