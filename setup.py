@@ -10,14 +10,13 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     keywords='mkdocs plugin',
-    url='https://github.com/mihaigalos/mkdocs-issues',
+    url='https://github.com/mihaigalos/mkdocs-issues-plugin',
     author='Mihai Galos',
     author_email='mihai@galos.one',
     license='MIT',
     python_requires='>=3.8',
     install_requires=[
         'mkdocs>=1.0.4',
-        'mkdocs-material',
         'requests'
     ],
     classifiers=[
