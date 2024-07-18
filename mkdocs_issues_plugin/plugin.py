@@ -12,8 +12,15 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
 logger.addHandler(console_handler)
 
-# Define SVG icons with appropriate colors for each status
-SVG_ICONS = {
+ISSUE_ICONS = {
+    'open': '''
+    <svg aria-hidden="false" focusable="false" aria-label="Open issue" role="img" class="Octicon-sc-9kayk9-0 chjfbL" viewBox="0 0 16 16" width="16" height="16" fill="#57ab5a" style="display: inline-block; user-select: none; vertical-align: text-bottom; overflow: visible;"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"></path><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"></path></svg>
+    ''',
+    'closed': '''
+    <svg aria-hidden="false" focusable="false" aria-label="Closed as completed issue" role="img" class="Octicon-sc-9kayk9-0 fxtjEX" viewBox="0 0 16 16" width="16" height="16" fill="#986ee2" style="display: inline-block; user-select: none; vertical-align: text-bottom; overflow: visible;"><path d="M11.28 6.78a.75.75 0 0 0-1.06-1.06L7.25 8.69 5.78 7.22a.75.75 0 0 0-1.06 1.06l2 2a.75.75 0 0 0 1.06 0l3.5-3.5Z"></path><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0Z"></path></svg>
+    '''
+}
+PR_ICONS = {
     'draft': '''
         <svg aria-hidden="false" focusable="false" aria-label="Draft pull request" role="img" class="Octicon-sc-9kayk9-0 epbonB" viewBox="0 0 16 16" width="14" height="14" fill="#6a737d" style="display: inline-block; user-select: none; vertical-align: text-bottom; overflow: visible;"><path d="M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 14a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM14 7.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Zm0-4.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z"></path></svg>
     ''',
@@ -156,9 +163,10 @@ class Issues(BasePlugin):
                         link = link_suffix_transform_fn(link)
 
                     if service == 'github' and fetch_status_fn == fetch_pr_status:
-                        status_icon = SVG_ICONS.get(status, SVG_ICONS['closed'])
+                        status_icon = PR_ICONS.get(status, PR_ICONS['closed'])
                         issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{number}]({link}) {labels_str}'
                     else:
+                        status_icon = ISSUE_ICONS.get(status, ISSUE_ICONS['closed'])
                         issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{number}]({link}) {labels_str}'
 
                     markdown = markdown.replace(match.group(0), issue_info)
