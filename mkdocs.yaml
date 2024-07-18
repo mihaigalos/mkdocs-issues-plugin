@@ -4,7 +4,8 @@ plugins:
     - search
     - issues:
         configs:
-          - base_url: 'https://github.com'
+          - service: 'github'
+            base_url: 'https://github.com'
             api_url: 'https://api.github.com'
             token: '$GITHUB_TOKEN_PUBLIC'
 
