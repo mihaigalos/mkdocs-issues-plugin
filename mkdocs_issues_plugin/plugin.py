@@ -6,12 +6,6 @@ from mkdocs.config import config_options
 import html
 import logging
 
-logger = logging.getLogger('mkdocs.plugins.issues')
-logger.setLevel(logging.DEBUG)
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-logger.addHandler(console_handler)
-
 ISSUE_ICONS = {
     'open': '''
     <svg aria-hidden="false" focusable="false" aria-label="Open issue" role="img" class="Octicon-sc-9kayk9-0 chjfbL" viewBox="0 0 16 16" width="16" height="16" fill="#57ab5a" style="display: inline-block; user-select: none; vertical-align: text-bottom; overflow: visible;"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"></path><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"></path></svg>
@@ -38,20 +32,34 @@ PR_ICONS = {
 class Issues(BasePlugin):
     config_scheme = (
         ('configs', config_options.Type(list, required=True)),
+        ('log_level', config_options.Type(str, default='INFO')),
     )
 
+    def setup_logger(self):
+        """Set up the logger based on the configuration."""
+        self.logger = logging.getLogger('mkdocs.plugins.my_plugin')
+        log_level = self.config['log_level'].upper()
+        numeric_level = getattr(logging, log_level, None)
+        if not isinstance(numeric_level, int):
+            raise ValueError(f'Invalid log level: {log_level}')
+
+        logging.basicConfig(level=numeric_level)
+        self.logger.setLevel(numeric_level)
+
+        self.logger.info(f'Log level set to {log_level}')
+
     def on_config(self, config, **kwargs):
-        logger.debug("Initializing Issues Plugin")
+        self.setup_logger()
+        self.logger.debug("Initializing Issues Plugin")
         for conf in self.config['configs']:
             token = conf['token']
             if token.startswith('$'):
                 env_var = token[1:]
                 conf['token'] = os.getenv(env_var, '')
                 if not conf['token']:
-                    logger.warning(f"Environment variable {env_var} is not set or empty.")
+                    self.logger.warning(f"Environment variable {env_var} is not set or empty.")
 
     def on_page_markdown(self, markdown, **kwargs):
-        logger.debug("Processing page markdown")
         for conf in self.config['configs']:
             service = conf['service']
             base_url = conf['base_url']
@@ -63,8 +71,8 @@ class Issues(BasePlugin):
 
             issue_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/issues/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/issues/(\d+)')
             pr_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/pull/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/merge_requests/(\d+)')
-            logger.debug(f"Issue regex pattern for {base_url}: {issue_pattern.pattern}")
-            logger.debug(f"PR regex pattern for {base_url}: {pr_pattern.pattern}")
+            self.logger.debug(f"Issue regex pattern for {base_url}: {issue_pattern.pattern}")
+            self.logger.debug(f"PR regex pattern for {base_url}: {pr_pattern.pattern}")
 
             def fetch_issue_status(owner, repo, number):
                 if service == 'github':
@@ -73,12 +81,12 @@ class Issues(BasePlugin):
                     repo_encoded = f"{owner}%2F{repo}"
                     url = f"{api_url}/projects/{repo_encoded}/issues/{number}"
 
-                logger.debug(f"Fetching issue from URL: {url}")
+                self.logger.debug(f"Fetching issue from URL: {url}")
                 try:
                     response = requests.get(url, headers=headers)
                     response.raise_for_status()
                 except requests.exceptions.RequestException as e:
-                    logger.error(f"Error fetching issue {owner}/{repo}#{number}: {e}")
+                    self.logger.error(f"Error fetching issue {owner}/{repo}#{number}: {e}")
                     return 'unknown', []
 
                 issue = response.json()
@@ -99,12 +107,12 @@ class Issues(BasePlugin):
                     pr_url = f"{api_url}/projects/{repo_encoded}/merge_requests/{number}"
                     issue_url = pr_url
 
-                logger.debug(f"Fetching PR from URL: {pr_url}")
+                self.logger.debug(f"Fetching PR from URL: {pr_url}")
                 try:
                     response = requests.get(pr_url, headers=headers)
                     response.raise_for_status()
                 except requests.exceptions.RequestException as e:
-                    logger.error(f"Error fetching PR {owner}/{repo}#{number}: {e}")
+                    self.logger.error(f"Error fetching PR {owner}/{repo}#{number}: {e}")
                     return 'unknown', []
 
                 pr = response.json()
@@ -137,7 +145,7 @@ class Issues(BasePlugin):
                             for label in issue.get('labels', [])
                         ]
                     except requests.exceptions.RequestException as e:
-                        logger.error(f"Error fetching labels for PR {owner}/{repo}#{number}: {e}")
+                        self.logger.error(f"Error fetching labels for PR {owner}/{repo}#{number}: {e}")
                 elif service == 'gitlab':
                     labels = [
                         {'name': label.get('name', ''), 'color': '007BFF'}
@@ -151,7 +159,7 @@ class Issues(BasePlugin):
                 matches = pattern.finditer(markdown)
                 for match in matches:
                     owner, repo, number = match.groups()
-                    logger.debug(f"Processing {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number}")
+                    self.logger.debug(f"Processing {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number}")
                     status, labels, title = fetch_status_fn(owner, repo, number)
                     status_icon = icon_map.get(status, '🔴')
                     status_title = status.capitalize() if status in icon_map else 'Closed'
@@ -172,7 +180,7 @@ class Issues(BasePlugin):
                         issue_info = f'<span title="{status_title}">{status_icon}</span> [{title}]({link}) {labels_str}'
 
                     markdown = markdown.replace(match.group(0), issue_info)
-                    logger.debug(f"Processed {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number} with status: {status}")
+                    self.logger.debug(f"Processed {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number} with status: {status}")
 
             # Process issues
             process_matches(issue_pattern, fetch_issue_status, {'open': '🟢', 'closed': '🔴'})
