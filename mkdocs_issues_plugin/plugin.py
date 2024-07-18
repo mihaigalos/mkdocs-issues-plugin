@@ -87,7 +87,8 @@ class Issues(BasePlugin):
                     {'name': label['name'], 'color': label['color'] if service == 'github' else '007BFF'}
                     for label in issue.get('labels', [])
                 ]
-                return status, labels
+                title = issue.get('title', 'unknown')
+                return status, labels, title
 
             def fetch_pr_status(owner, repo, number):
                 if service == 'github':
@@ -109,6 +110,7 @@ class Issues(BasePlugin):
                 pr = response.json()
                 status = pr.get('state', 'unknown')
                 draft = pr.get('draft', False) if service == 'github' else pr.get('work_in_progress', False)
+                title = pr.get('title', 'unknown')
                 if draft:
                     status = 'draft'
                 elif service == 'github':
@@ -142,7 +144,7 @@ class Issues(BasePlugin):
                         for label in pr.get('labels', [])
                     ]
 
-                return status, labels
+                return status, labels, title
 
             def process_matches(pattern, fetch_status_fn, icon_map, link_suffix_transform_fn=None):
                 nonlocal markdown
@@ -150,7 +152,7 @@ class Issues(BasePlugin):
                 for match in matches:
                     owner, repo, number = match.groups()
                     logger.debug(f"Processing {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number}")
-                    status, labels = fetch_status_fn(owner, repo, number)
+                    status, labels, title = fetch_status_fn(owner, repo, number)
                     status_icon = icon_map.get(status, '🔴')
                     status_title = status.capitalize() if status in icon_map else 'Closed'
                     labels_str = ''.join(
@@ -164,10 +166,10 @@ class Issues(BasePlugin):
 
                     if service == 'github' and fetch_status_fn == fetch_pr_status:
                         status_icon = PR_ICONS.get(status, PR_ICONS['closed'])
-                        issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{number}]({link}) {labels_str}'
+                        issue_info = f'<span title="{status_title}">{status_icon}</span> [{title}]({link}) {labels_str}'
                     else:
                         status_icon = ISSUE_ICONS.get(status, ISSUE_ICONS['closed'])
-                        issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{number}]({link}) {labels_str}'
+                        issue_info = f'<span title="{status_title}">{status_icon}</span> [{title}]({link}) {labels_str}'
 
                     markdown = markdown.replace(match.group(0), issue_info)
                     logger.debug(f"Processed {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number} with status: {status}")
