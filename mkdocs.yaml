@@ -3,9 +3,10 @@ site_name: One
 plugins:
     - search
     - issues:
-        github_base_url: 'https://github.com'
-        github_api_url: 'https://api.github.com'
-        github_token: '$GITHUB_TOKEN_PUBLIC'  # Reference to the environment variable
+        configs:
+          - base_url: 'https://github.com'
+            api_url: 'https://api.github.com'
+            token: '$GITHUB_TOKEN_PUBLIC'
 
 theme:
   name: material
