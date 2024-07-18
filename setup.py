@@ -32,7 +32,7 @@ setup(
     packages=find_packages(),
     entry_points={
         'mkdocs.plugins': [
-            'issues = mkdocs_issues_plugin.plugin:Issues'
+            'mkdocs-issues-plugin = mkdocs_issues_plugin.plugin:Issues'
         ]
     }
 )
