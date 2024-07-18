@@ -20,6 +20,7 @@ Add the following lines to you `mkdocs.yaml`:
 plugins:
     - search
     - mkdocs-issues-plugin:
+        log_level: "INFO"  # "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
         configs:
           - service: 'github'
             base_url: 'https://github.com'
