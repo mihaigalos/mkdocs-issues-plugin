@@ -68,14 +68,16 @@ class Issues(BasePlugin):
 
             def fetch_pr_status(owner, repo, number):
                 if service == 'github':
-                    url = f"{api_url}/repos/{owner}/{repo}/pulls/{number}"
+                    pr_url = f"{api_url}/repos/{owner}/{repo}/pulls/{number}"
+                    issue_url = f"{api_url}/repos/{owner}/{repo}/issues/{number}"
                 elif service == 'gitlab':
                     repo_encoded = f"{owner}%2F{repo}"
-                    url = f"{api_url}/projects/{repo_encoded}/merge_requests/{number}"
+                    pr_url = f"{api_url}/projects/{repo_encoded}/merge_requests/{number}"
+                    issue_url = pr_url
 
-                logger.debug(f"Fetching PR from URL: {url}")
+                logger.debug(f"Fetching PR from URL: {pr_url}")
                 try:
-                    response = requests.get(url, headers=headers)
+                    response = requests.get(pr_url, headers=headers)
                     response.raise_for_status()
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Error fetching PR {owner}/{repo}#{number}: {e}")
@@ -94,7 +96,26 @@ class Issues(BasePlugin):
                         status = 'merged'
                     elif pr['state'] == 'closed':
                         status = 'closed'
+
+                # Fetch labels
                 labels = []
+                if service == 'github':
+                    try:
+                        issue_response = requests.get(issue_url, headers=headers)
+                        issue_response.raise_for_status()
+                        issue = issue_response.json()
+                        labels = [
+                            {'name': label['name'], 'color': label['color']}
+                            for label in issue.get('labels', [])
+                        ]
+                    except requests.exceptions.RequestException as e:
+                        logger.error(f"Error fetching labels for PR {owner}/{repo}#{number}: {e}")
+                elif service == 'gitlab':
+                    labels = [
+                        {'name': label.get('name', ''), 'color': '007BFF'}
+                        for label in pr.get('labels', [])
+                    ]
+
                 return status, labels
 
             def process_matches(pattern, fetch_status_fn, icon_map, link_suffix_transform_fn=None):
