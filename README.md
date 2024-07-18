@@ -19,7 +19,7 @@ Add the following lines to you `mkdocs.yaml`:
 ```yaml
 plugins:
     - search
-    - issues:
+    - mkdocs-issues-plugin:
         configs:
           - service: 'github'
             base_url: 'https://github.com'

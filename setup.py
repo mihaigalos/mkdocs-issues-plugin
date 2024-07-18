@@ -17,6 +17,7 @@ setup(
     python_requires='>=3.8',
     install_requires=[
         'mkdocs>=1.0.4',
+        'mkdocs-material',
         'requests'
     ],
     classifiers=[

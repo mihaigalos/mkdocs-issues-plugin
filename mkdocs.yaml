@@ -2,7 +2,7 @@ site_name: One
 
 plugins:
     - search
-    - issues:
+    - mkdocs-issues-plugin:
         configs:
           - service: 'github'
             base_url: 'https://github.com'
