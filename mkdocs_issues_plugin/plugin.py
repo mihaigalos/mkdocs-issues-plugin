@@ -39,21 +39,23 @@ class Issues(BasePlugin):
                 headers = {'Private-Token': token} if token else {}
 
             issue_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/issues/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/issues/(\d+)')
-            logger.debug(f"Regex pattern for {base_url}: {issue_pattern.pattern}")
+            pr_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/pull/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/merge_requests/(\d+)')
+            logger.debug(f"Issue regex pattern for {base_url}: {issue_pattern.pattern}")
+            logger.debug(f"PR regex pattern for {base_url}: {pr_pattern.pattern}")
 
-            def fetch_issue_status(owner, repo, issue_number):
+            def fetch_issue_status(owner, repo, number):
                 if service == 'github':
-                    url = f"{api_url}/repos/{owner}/{repo}/issues/{issue_number}"
+                    url = f"{api_url}/repos/{owner}/{repo}/issues/{number}"
                 elif service == 'gitlab':
                     repo_encoded = f"{owner}%2F{repo}"
-                    url = f"{api_url}/projects/{repo_encoded}/issues/{issue_number}"
+                    url = f"{api_url}/projects/{repo_encoded}/issues/{number}"
 
                 logger.debug(f"Fetching issue from URL: {url}")
                 try:
                     response = requests.get(url, headers=headers)
                     response.raise_for_status()
                 except requests.exceptions.RequestException as e:
-                    logger.error(f"Error fetching issue {owner}/{repo}#{issue_number}: {e}")
+                    logger.error(f"Error fetching issue {owner}/{repo}#{number}: {e}")
                     return 'unknown', []
 
                 issue = response.json()
@@ -64,31 +66,64 @@ class Issues(BasePlugin):
                 ]
                 return status, labels
 
-            matches = issue_pattern.finditer(markdown)
-            found_any_matches = False
-            for match in matches:
-                found_any_matches = True
-                logger.debug(f"Found match: {match.group()}")
-                owner, repo, issue_number = match.groups()
-                logger.debug(f"Processing issue: {owner}/{repo}#{issue_number}")
-                status, labels = fetch_issue_status(owner, repo, issue_number)
-                status_icon = '🟢' if status == 'open' else '🟣'
-                status_title = 'Open' if status == 'open' else 'Closed'
-                labels_str = ''.join(
-                    f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
-                    for label in labels
-                ) or 'No labels'
-
+            def fetch_pr_status(owner, repo, number):
                 if service == 'github':
-                    issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{issue_number}]({match.group(0)}) {labels_str}'
+                    url = f"{api_url}/repos/{owner}/{repo}/pulls/{number}"
                 elif service == 'gitlab':
-                    issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{issue_number}]({match.group(0).replace("/-/issues/", "/issues/")}) {labels_str}'
+                    repo_encoded = f"{owner}%2F{repo}"
+                    url = f"{api_url}/projects/{repo_encoded}/merge_requests/{number}"
 
-                markdown = markdown.replace(match.group(0), issue_info)
-                logger.debug(f"Processed issue: {owner}/{repo}#{issue_number} with status: {status}")
+                logger.debug(f"Fetching PR from URL: {url}")
+                try:
+                    response = requests.get(url, headers=headers)
+                    response.raise_for_status()
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Error fetching PR {owner}/{repo}#{number}: {e}")
+                    return 'unknown', []
 
-            if not found_any_matches:
-                logger.debug(f"No matches found in the markdown content for base URL: {base_url}")
+                pr = response.json()
+                status = pr.get('state', 'unknown')
+                if service == 'github':
+                    merged = pr.get('merged_at', None) is not None
+                    if merged:
+                        status = 'merged'
+                    elif status == 'closed':
+                        status = 'closed'
+                elif service == 'gitlab':
+                    if pr.get('merged_at', False):
+                        status = 'merged'
+                    elif pr['state'] == 'closed':
+                        status = 'closed'
+                labels = []
+                return status, labels
+
+            def process_matches(pattern, fetch_status_fn, icon_map, link_suffix_transform_fn=None):
+                nonlocal markdown
+                matches = pattern.finditer(markdown)
+                for match in matches:
+                    owner, repo, number = match.groups()
+                    logger.debug(f"Processing {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number}")
+                    status, labels = fetch_status_fn(owner, repo, number)
+                    status_icon = icon_map.get(status, '🔴')
+                    status_title = status.capitalize() if status in icon_map else 'Closed'
+                    labels_str = ''.join(
+                        f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
+                        for label in labels
+                    ) or 'No labels'
+
+                    link = match.group(0)
+                    if link_suffix_transform_fn:
+                        link = link_suffix_transform_fn(link)
+
+                    issue_info = f'<span title="{status_title}">{status_icon}</span> [{owner}/{repo}#{number}]({link}) {labels_str}'
+                    markdown = markdown.replace(match.group(0), issue_info)
+                    logger.debug(f"Processed {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number} with status: {status}")
+
+            # Process issues
+            process_matches(issue_pattern, fetch_issue_status, {'open': '🟢', 'closed': '🔴'})
+            # Process PRs
+            process_matches(pr_pattern, fetch_pr_status, {'open': '🟢', 'merged': '🟣', 'closed': '🔴'},
+                            link_suffix_transform_fn=(lambda link: link.replace('/-/merge_requests/', '/merge_requests/')) if service == 'gitlab' else None)
 
         return markdown
 
