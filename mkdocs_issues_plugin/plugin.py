@@ -149,7 +149,7 @@ class Issues(BasePlugin):
                     labels_str = ''.join(
                         f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
                         for label in labels
-                    ) or 'No labels'
+                    ) or ''
 
                     link = match.group(0)
                     if link_suffix_transform_fn:
