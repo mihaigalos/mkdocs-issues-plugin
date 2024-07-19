@@ -1,6 +1,6 @@
 # mkdocs-issues-plugin
 
-A plugin for showing the state and labels of issues (GitHub or GitLab) in mkdocs generated docs. 
+A plugin for showing the state and labels of issues, PRs and discussions (GitHub or GitLab) in mkdocs generated docs. 
 
 The following shows a rendering of [index.md](https://github.com/mihaigalos/mkdocs-issues-plugin/blob/main/docs/index.md):
 
@@ -8,12 +8,11 @@ The following shows a rendering of [index.md](https://github.com/mihaigalos/mkdo
 
 ## Usage
 
-Install the mkdocs-issues-plugin package:
+Install the package:
 
 ```bash
 pip install mkdocs-issues-plugin
 ```
-
 
 Add the following lines to you `mkdocs.yaml`:
 ```yaml
@@ -29,7 +28,6 @@ plugins:
 ```
 
 Create a GitHub token and export it before running `mkdocs serve`:
-
 ```
 export GITHUB_TOKEN_PUBLIC=ghp_***
 mkdocs serve
