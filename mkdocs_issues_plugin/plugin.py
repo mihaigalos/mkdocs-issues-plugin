@@ -29,6 +29,11 @@ PR_ICONS = {
     '''
 }
 
+DISCUSSION_ICONS = {
+    'open': '🟢',
+    'closed': '🔴'
+}
+
 class Issues(BasePlugin):
     config_scheme = (
         ('configs', config_options.Type(list, required=True)),
@@ -59,6 +64,52 @@ class Issues(BasePlugin):
                 if not conf['token']:
                     self.logger.warning(f"Environment variable {env_var} is not set or empty.")
 
+    def fetch_discussion_status(self, owner, repo, number, headers):
+        query = """
+        query($owner: String!, $repo: String!, $number: Int!) {
+            repository(owner: $owner, name: $repo) {
+                discussion(number: $number) {
+                    title
+                    isAnswered
+                    labels(first: 10) {
+                        nodes {
+                            name
+                            color
+                        }
+                    }
+                }
+            }
+        }
+        """
+        variables = {
+            "owner": owner,
+            "repo": repo,
+            "number": int(number)
+        }
+        url = "https://api.github.com/graphql"
+        payload = {
+            "query": query,
+            "variables": variables
+        }
+        self.logger.debug(f"Fetching discussion from GraphQL API: {url}")
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Error fetching discussion {owner}/{repo}#{number}: {e}")
+            return 'unknown', [], 'unknown'
+
+        data = response.json()
+        print(data)
+        discussion = data['data']['repository']['discussion']
+        state = "closed" if discussion.get('isAnswered', False) == True else "open"
+        title = discussion.get('title', 'unknown')
+        labels = [
+            {'name': label['name'], 'color': label['color']}
+            for label in discussion['labels']['nodes']
+        ]
+        return state, labels, title
+
     def on_page_markdown(self, markdown, **kwargs):
         for conf in self.config['configs']:
             service = conf['service']
@@ -71,98 +122,67 @@ class Issues(BasePlugin):
 
             issue_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/issues/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/issues/(\d+)')
             pr_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/pull/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/merge_requests/(\d+)')
+            discussion_pattern = re.compile(rf'{re.escape(base_url)}/([^/]+)/([^/]+)/discussions/(\d+)' if service == 'github' else rf'{re.escape(base_url)}/([^/]+)/([^/]+)/-/discussions/(\d+)')
+
             self.logger.debug(f"Issue regex pattern for {base_url}: {issue_pattern.pattern}")
             self.logger.debug(f"PR regex pattern for {base_url}: {pr_pattern.pattern}")
+            self.logger.debug(f"Discussion regex pattern for {base_url}: {discussion_pattern.pattern}")
 
-            def fetch_issue_status(owner, repo, number):
+            def fetch_status(owner, repo, number, item_type):
                 if service == 'github':
-                    url = f"{api_url}/repos/{owner}/{repo}/issues/{number}"
+                    if item_type in ['issue']:
+                        url = f"{api_url}/repos/{owner}/{repo}/{item_type}s/{number}"
+                    elif item_type == 'pr':
+                        url = f"{api_url}/repos/{owner}/{repo}/pulls/{number}"
+                    elif item_type == 'discussion':
+                        return self.fetch_discussion_status(owner, repo, number, headers)
                 elif service == 'gitlab':
                     repo_encoded = f"{owner}%2F{repo}"
-                    url = f"{api_url}/projects/{repo_encoded}/issues/{number}"
+                    if item_type == 'issue':
+                        url = f"{api_url}/projects/{repo_encoded}/issues/{number}"
+                    elif item_type == 'pr':
+                        url = f"{api_url}/projects/{repo_encoded}/merge_requests/{number}"
+                    elif item_type == 'discussion':
+                        url = f"{api_url}/projects/{repo_encoded}/discussions/{number}"
 
-                self.logger.debug(f"Fetching issue from URL: {url}")
+                self.logger.debug(f"Fetching {item_type} from URL: {url}")
                 try:
                     response = requests.get(url, headers=headers)
                     response.raise_for_status()
                 except requests.exceptions.RequestException as e:
-                    self.logger.error(f"Error fetching issue {owner}/{repo}#{number}: {e}")
-                    return 'unknown', []
+                    self.logger.error(f"Error fetching {item_type} {owner}/{repo}#{number}: {e}")
+                    return 'unknown', [], 'unknown'
 
-                issue = response.json()
-                status = issue.get('state', 'unknown')
+                data = response.json()
+                if item_type == 'discussion':
+                    state = 'open'  # default, GitHub API doesn't provide specific state field for discussions
+                elif item_type == 'issue':
+                    state = data.get('state', 'unknown')
+                elif item_type == 'pr':
+                    state = data.get('state', 'unknown')
+                    draft = data.get('draft', False) if service == 'github' else data.get('work_in_progress', False)
+                    if draft:
+                        state = 'draft'
+                    elif service == 'github':
+                        merged = data.get('merged_at', None) is not None
+                        if merged:
+                            state = 'merged'
                 labels = [
                     {'name': label['name'], 'color': label['color'] if service == 'github' else '007BFF'}
-                    for label in issue.get('labels', [])
+                    for label in data.get('labels', [])
                 ]
-                title = issue.get('title', 'unknown')
-                return status, labels, title
+                title = data.get('title', 'unknown')
+                return state, labels, title
 
-            def fetch_pr_status(owner, repo, number):
-                if service == 'github':
-                    pr_url = f"{api_url}/repos/{owner}/{repo}/pulls/{number}"
-                    issue_url = f"{api_url}/repos/{owner}/{repo}/issues/{number}"
-                elif service == 'gitlab':
-                    repo_encoded = f"{owner}%2F{repo}"
-                    pr_url = f"{api_url}/projects/{repo_encoded}/merge_requests/{number}"
-                    issue_url = pr_url
-
-                self.logger.debug(f"Fetching PR from URL: {pr_url}")
-                try:
-                    response = requests.get(pr_url, headers=headers)
-                    response.raise_for_status()
-                except requests.exceptions.RequestException as e:
-                    self.logger.error(f"Error fetching PR {owner}/{repo}#{number}: {e}")
-                    return 'unknown', []
-
-                pr = response.json()
-                status = pr.get('state', 'unknown')
-                draft = pr.get('draft', False) if service == 'github' else pr.get('work_in_progress', False)
-                title = pr.get('title', 'unknown')
-                if draft:
-                    status = 'draft'
-                elif service == 'github':
-                    merged = pr.get('merged_at', None) is not None
-                    if merged:
-                        status = 'merged'
-                    elif status == 'closed':
-                        status = 'closed'
-                elif service == 'gitlab':
-                    if pr.get('merged_at', False):
-                        status = 'merged'
-                    elif pr['state'] == 'closed':
-                        status = 'closed'
-
-                # Fetch labels
-                labels = []
-                if service == 'github':
-                    try:
-                        issue_response = requests.get(issue_url, headers=headers)
-                        issue_response.raise_for_status()
-                        issue = issue_response.json()
-                        labels = [
-                            {'name': label['name'], 'color': label['color']}
-                            for label in issue.get('labels', [])
-                        ]
-                    except requests.exceptions.RequestException as e:
-                        self.logger.error(f"Error fetching labels for PR {owner}/{repo}#{number}: {e}")
-                elif service == 'gitlab':
-                    labels = [
-                        {'name': label.get('name', ''), 'color': '007BFF'}
-                        for label in pr.get('labels', [])
-                    ]
-
-                return status, labels, title
-
-            def process_matches(pattern, fetch_status_fn, icon_map, link_suffix_transform_fn=None):
+            def process_matches(pattern, item_type, icon_map, link_suffix_transform_fn=None):
                 nonlocal markdown
                 matches = pattern.finditer(markdown)
                 for match in matches:
                     owner, repo, number = match.groups()
-                    self.logger.debug(f"Processing {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number}")
-                    status, labels, title = fetch_status_fn(owner, repo, number)
-                    status_icon = icon_map.get(status, '')
-                    status_title = status.capitalize() if status in icon_map else 'Closed'
+                    self.logger.debug(f"Processing {item_type}: {owner}/{repo}#{number}")
+                    state, labels, title = fetch_status(owner, repo, number, item_type)
+                    state_icon = icon_map.get(state, '❓')  # Default to question mark if state is unknown
+                    state_title = state.capitalize()
                     labels_str = ''.join(
                         f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
                         for label in labels
@@ -172,25 +192,21 @@ class Issues(BasePlugin):
                     if link_suffix_transform_fn:
                         link = link_suffix_transform_fn(link)
 
-                    if service == 'github' and fetch_status_fn == fetch_pr_status:
-                        status_icon = PR_ICONS.get(status, PR_ICONS['closed'])
-                        issue_info = f'<span title="{status_title}">{status_icon}</span> [{title}]({link}) {labels_str}'
-                    else:
-                        status_icon = ISSUE_ICONS.get(status, ISSUE_ICONS['closed'])
-                        issue_info = f'<span title="{status_title}">{status_icon}</span> [{title}]({link}) {labels_str}'
+                    item_info = f'<span title="{state_title}">{state_icon}</span> [{title}]({link}) {labels_str}'
+                    markdown = markdown.replace(match.group(0), item_info)
+                    self.logger.debug(f"Processed {item_type}: {owner}/{repo}#{number} with state: {state}")
 
-                    markdown = markdown.replace(match.group(0), issue_info)
-                    self.logger.debug(f"Processed {fetch_status_fn.__name__.split('_')[1]}: {owner}/{repo}#{number} with status: {status}")
-
-            # Process issues
-            process_matches(issue_pattern, fetch_issue_status, {'open': ISSUE_ICONS['open'], 'closed': ISSUE_ICONS['closed']})
-            # Process PRs
-            process_matches(pr_pattern, fetch_pr_status, {'open': PR_ICONS['open'], 'merged': PR_ICONS['merged'], 'draft': PR_ICONS['draft'], 'closed': PR_ICONS['closed']},
+            # Process issues: GitHub or GitLab issues
+            process_matches(issue_pattern, 'issue', ISSUE_ICONS)
+            # Process PRs: GitHub or GitLab pull requests
+            process_matches(pr_pattern, 'pr', PR_ICONS,
                             link_suffix_transform_fn=(lambda link: link.replace('/-/merge_requests/', '/merge_requests/')) if service == 'gitlab' else None)
+            # Process discussions: GitHub or GitLab discussions
+            process_matches(discussion_pattern, 'discussion', DISCUSSION_ICONS,
+                            link_suffix_transform_fn=(lambda link: link.replace('/-/discussions/', '/discussions/')) if service == 'gitlab' else None)
 
         return markdown
 
 # Setup function for entry point
 def get_status():
     return Issues
-
