@@ -12,5 +12,6 @@
 
 ## Discussions
 * A closed Discussion: https://github.com/mkdocs/mkdocs/discussions/3687.
-* An open, answered Discussion: https://github.com/mkdocs/mkdocs/discussions/3768.
-* An unanswered Discussion: https://github.com/mkdocs/mkdocs/discussions/3661.
+* An open, answered Discussion: https://github.com/mkdocs/mkdocs/discussions/3734.
+* An unanswered Discussion: https://github.com/mkdocs/mkdocs/discussions/3732.
+
