@@ -30,8 +30,17 @@ PR_ICONS = {
 }
 
 DISCUSSION_ICONS = {
-    'open': '🟢',
-    'closed': '🔴'
+    'unanswered': '''
+<svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check-circle color-fg-muted mr-1">
+    <path fill="#9a9284" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm1.5 0a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm10.28-1.72-4.5 4.5a.75.75 0 0 1-1.06 0l-2-2a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l1.47 1.47 3.97-3.97a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042Z"></path>
+    </svg>
+
+    ''',
+    'answered': '''
+    <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" data-view-component="true" class="octicon octicon-check-circle-fill color-fg-success mr-1">
+        <path fill="#67b36a" d="M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16Zm3.78-9.72a.751.751 0 0 0-.018-1.042.751.751 0 0 0-1.042-.018L6.75 9.19 5.28 7.72a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042l2 2a.75.75 0 0 0 1.06 0Z"></path>
+    </svg>
+    '''
 }
 
 class Issues(BasePlugin):
@@ -100,9 +109,9 @@ class Issues(BasePlugin):
             return 'unknown', [], 'unknown'
 
         data = response.json()
-        print(data)
+        self.logger.debug(data)
         discussion = data['data']['repository']['discussion']
-        state = "closed" if discussion.get('isAnswered', False) == True else "open"
+        state = "answered" if discussion.get('isAnswered', False) == True else "unanswered"
         title = discussion.get('title', 'unknown')
         labels = [
             {'name': label['name'], 'color': label['color']}
