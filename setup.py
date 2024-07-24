@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='mkdocs-issues-plugin',
-    version='0.1.0',
+    version='0.1.1',
     description='Issues, PRs, Discussions status and labels in mkdocs.',
     long_description=long_description,
     long_description_content_type="text/markdown",
