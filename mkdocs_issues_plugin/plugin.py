@@ -79,15 +79,15 @@ class Issues(BasePlugin):
                 if not conf['token']:
                     self.logger.warning(f"Environment variable {env_var} is not set or empty.")
 
-    def fetch_status(self, owner, repo, number, item_type, headers):
+    def fetch_status(self, owner, repo, number, item_type, headers, api_url):
         if item_type == 'discussion':
-            return self.fetch_discussion_status(owner, repo, number, headers)
+            return self.fetch_discussion_status(owner, repo, number, headers, api_url)
 
         api_url_map = {
             'issue': f"/repos/{owner}/{repo}/issues/{number}",
             'pr': f"/repos/{owner}/{repo}/pulls/{number}"
         }
-        url = f"{self.config['configs'][0]['api_url']}{api_url_map[item_type]}"
+        url = f"{api_url}{api_url_map[item_type]}"
 
         self.logger.debug(f"Fetching {item_type} from URL: {url}")
         try:
@@ -111,7 +111,7 @@ class Issues(BasePlugin):
         title = data.get('title', 'unknown')
         return state, labels, title
 
-    def fetch_discussion_status(self, owner, repo, number, headers):
+    def fetch_discussion_status(self, owner, repo, number, headers, api_url):
         query = """
         query($owner: String!, $repo: String!, $number: Int!) {
             repository(owner: $owner, name: $repo) {
@@ -133,7 +133,7 @@ class Issues(BasePlugin):
             "repo": repo,
             "number": int(number)
         }
-        url = f"{self.config['configs'][0]['api_url']}/graphql"
+        url = f"{api_url}/graphql"
         payload = {
             "query": query,
             "variables": variables
@@ -148,7 +148,11 @@ class Issues(BasePlugin):
 
         data = response.json()
         self.logger.debug(data)
-        discussion = data['data']['repository']['discussion']
+        discussion = data.get('data', {}).get('repository', {}).get('discussion')
+        if discussion is None:
+            self.logger.error(f"No discussion data found for {owner}/{repo}#{number}")
+            return 'unknown', [], 'unknown'
+
         state = "answered" if discussion.get('isAnswered', False) else "unanswered"
         title = discussion.get('title', 'unknown')
         labels = [
@@ -157,17 +161,17 @@ class Issues(BasePlugin):
         ]
         return state, labels, title
 
-    def process_matches(self, markdown, pattern, item_type, icon_map, headers):
+    def process_matches(self, markdown, pattern, item_type, icon_map, headers, api_url):
         def replace_match(match):
             full_match = match.group(0)
             if self.PROCESSED_MARKER in full_match:
                 return full_match  # Skip already processed content
 
-            link_text = match.group(1) if match.group(1) else full_match
-            link_url = match.group(2) if match.group(2) else full_match
+            link_text = match.group(1) or full_match
+            link_url = match.group(2) or full_match
             owner, repo, number = re.search(r"([^/]+)/([^/]+)/\w+/(\d+)", link_url).groups()
             self.logger.debug(f"Processing {item_type}: {owner}/{repo}#{number}")
-            state, labels, title = self.fetch_status(owner, repo, number, item_type, headers)
+            state, labels, title = self.fetch_status(owner, repo, number, item_type, headers, api_url)
             state_icon = icon_map.get(state, '❓')  # Default to question mark if state is unknown
             labels_str = ''.join(
                 f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
@@ -178,25 +182,25 @@ class Issues(BasePlugin):
 
         return pattern.sub(replace_match, markdown)
 
+
     def on_page_markdown(self, markdown, **kwargs):
         for conf in self.config['configs']:
             token = conf['token']
             headers = {'Authorization': f'token {token}'} if token else {}
 
             base_url = re.escape(conf['base_url'])
+            api_url = conf['api_url']
 
             # Patterns for plain URLs and markdown links
             issue_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/issues/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/issues/\d+)')
             pr_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/pull/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/pull/\d+)')
             discussion_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/discussions/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/discussions/\d+)')
 
-            markdown = self.process_matches(markdown, issue_pattern, 'issue', self.ISSUE_ICONS, headers)
-            markdown = self.process_matches(markdown, pr_pattern, 'pr', self.PR_ICONS, headers)
-            markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers)
+            markdown = self.process_matches(markdown, issue_pattern, 'issue', self.ISSUE_ICONS, headers, api_url)
+            markdown = self.process_matches(markdown, pr_pattern, 'pr', self.PR_ICONS, headers, api_url)
+            markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers, api_url)
 
         return markdown
 
-
-# Setup function for entry point
 def get_status():
     return Issues
