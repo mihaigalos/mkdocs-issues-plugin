@@ -178,33 +178,6 @@ class Issues(BasePlugin):
 
         return pattern.sub(replace_match, markdown)
 
-    def process_raw_references(self, markdown, conf, headers):
-        repo_info = re.search(r'([^/]+)/([^/]+)', conf["base_url"])
-        if not repo_info:
-            self.logger.error(f"Invalid repository url in base_url: {conf['base_url']}")
-            return markdown
-        owner, repo = repo_info.groups()
-
-        def replace_match(match):
-            full_match = match.group(0)
-            if self.PROCESSED_MARKER in full_match:
-                return full_match  # Skip already processed content
-
-            number = match.group(1)
-            url = f"{conf['base_url']}/{owner}/{repo}/issues/{number}"
-            link_text = f"#{number}"
-            self.logger.debug(f"Handling raw reference: {link_text} for repo: {owner}/{repo}")
-            state, labels, title = self.fetch_status(owner, repo, number, 'issue', headers)
-            state_icon = self.ISSUE_ICONS.get(state, '❓')
-            labels_str = ''.join(
-                f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
-                for label in labels
-            ) or ''
-            return f'{state_icon} [{link_text}]({url}) {labels_str} {self.PROCESSED_MARKER}'
-
-        raw_pattern = re.compile(r'#(\d+)')
-        return raw_pattern.sub(replace_match, markdown)
-
     def on_page_markdown(self, markdown, **kwargs):
         for conf in self.config['configs']:
             token = conf['token']
@@ -217,14 +190,9 @@ class Issues(BasePlugin):
             pr_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/pull/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/pull/\d+)')
             discussion_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/discussions/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/discussions/\d+)')
 
-            # Match Issues
             markdown = self.process_matches(markdown, issue_pattern, 'issue', self.ISSUE_ICONS, headers)
-            # Match PRs
             markdown = self.process_matches(markdown, pr_pattern, 'pr', self.PR_ICONS, headers)
-            # Match Discussions
             markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers)
-            # Process raw references
-            markdown = self.process_raw_references(markdown, conf, headers)
 
         return markdown
 
