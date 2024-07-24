@@ -111,7 +111,7 @@ class Issues(BasePlugin):
         title = data.get('title', 'unknown')
         return state, labels, title
 
-    def fetch_discussion_status(self, owner, repo, number, headers, api_url):
+    def fetch_discussion_status(self, owner, repo, number, headers, graphql_url):
         query = """
         query($owner: String!, $repo: String!, $number: Int!) {
             repository(owner: $owner, name: $repo) {
@@ -133,14 +133,13 @@ class Issues(BasePlugin):
             "repo": repo,
             "number": int(number)
         }
-        url = f"{api_url}/graphql"
         payload = {
             "query": query,
             "variables": variables
         }
-        self.logger.debug(f"Fetching discussion from GraphQL API: {url}")
+        self.logger.debug(f"Fetching discussion from GraphQL API: {graphql_url}")
         try:
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(graphql_url, json=payload, headers=headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error fetching discussion {owner}/{repo}#{number}: {e}")
@@ -173,15 +172,15 @@ class Issues(BasePlugin):
             self.logger.debug(f"Processing {item_type}: {owner}/{repo}#{number}")
             state, labels, title = self.fetch_status(owner, repo, number, item_type, headers, api_url)
             state_icon = icon_map.get(state, '❓')  # Default to question mark if state is unknown
+            state_name = state.capitalize()
             labels_str = ''.join(
                 f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
                 for label in labels
             ) or ''
 
-            return f'{state_icon} [{title}]({link_url}) {labels_str} {self.PROCESSED_MARKER}'
+            return f'<span title="{state_name}">{state_icon}</span> [{title}]({link_url}) {labels_str} {self.PROCESSED_MARKER}'
 
         return pattern.sub(replace_match, markdown)
-
 
     def on_page_markdown(self, markdown, **kwargs):
         for conf in self.config['configs']:
@@ -190,15 +189,19 @@ class Issues(BasePlugin):
 
             base_url = re.escape(conf['base_url'])
             api_url = conf['api_url']
+            graphql_url = conf.get('graphql_api_url', f"{api_url}/graphql")
 
             # Patterns for plain URLs and markdown links
             issue_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/issues/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/issues/\d+)')
             pr_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/pull/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/pull/\d+)')
             discussion_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/discussions/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/discussions/\d+)')
 
+            # Match Issues
             markdown = self.process_matches(markdown, issue_pattern, 'issue', self.ISSUE_ICONS, headers, api_url)
+            # Match PRs
             markdown = self.process_matches(markdown, pr_pattern, 'pr', self.PR_ICONS, headers, api_url)
-            markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers, api_url)
+            # Match Discussions
+            markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers, graphql_url)
 
         return markdown
 

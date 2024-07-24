@@ -24,6 +24,7 @@ plugins:
           - service: 'github'
             base_url: 'https://github.com'
             api_url: 'https://api.github.com'
+            #graphql_api_url: 'https://company.tech/api/v3/graphql' # Optional, defaults to {api_url}/graphql if not set
             token: '$GITHUB_TOKEN_PUBLIC'
 ```
 
