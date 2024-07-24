@@ -3,7 +3,7 @@ site_name: One
 plugins:
     - search
     - mkdocs-issues-plugin:
-        log_level: "INFO"  # "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        log_level: "DEBUG"  # "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
         configs:
           - service: 'github'
             base_url: 'https://github.com'
