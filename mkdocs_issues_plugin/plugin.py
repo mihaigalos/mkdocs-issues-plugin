@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import requests
@@ -10,6 +11,7 @@ class Issues(BasePlugin):
     config_scheme = (
         ('configs', config_options.Type(list, required=True)),
         ('log_level', config_options.Type(str, default='INFO')),
+        ('batch_limit', config_options.Type(int, default=50)),
     )
 
     ISSUE_ICONS = {
@@ -79,110 +81,113 @@ class Issues(BasePlugin):
                 if not conf['token']:
                     self.logger.warning(f"Environment variable {env_var} is not set or empty.")
 
-    def fetch_status(self, owner, repo, number, item_type, headers, api_url):
-        if item_type == 'discussion':
-            return self.fetch_discussion_status(owner, repo, number, headers, api_url)
+    def query_graphql(self, items, headers, graphql_url):
+        # Separate queries for issues, PRs, and discussions
+        queries = []
+        for item in items:
+            owner, repo, number, item_type = item
+            item_field = {
+                'issue': 'issue',
+                'pr': 'pullRequest',
+                'discussion': 'discussion'
+            }[item_type]
+            item_fragment = """id title labels(first: 10) { nodes { name color } } state"""
+            if item_type == "discussion":
+                item_fragment = """id title labels(first: 10) { nodes { name color } } isAnswered"""
+            item_key = f'{item_type}_{owner}_{repo}_{number}'
+            queries.append(f"""
+                {item_key}: repository(owner: \"{owner}\", name: \"{repo}\") {{
+                    {item_field}(number: {number}) {{
+                        {item_fragment}
+                    }}
+                }}
+            """)
+        full_query = "query {\n" + "\n".join(queries) + "\n}"
 
-        api_url_map = {
-            'issue': f"/repos/{owner}/{repo}/issues/{number}",
-            'pr': f"/repos/{owner}/{repo}/pulls/{number}"
-        }
-        url = f"{api_url}{api_url_map[item_type]}"
-
-        self.logger.debug(f"Fetching {item_type} from URL: {url}")
-        try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching {item_type} {owner}/{repo}#{number}: {e}")
-            return 'unknown', [], 'unknown'
-
-        data = response.json()
-        if item_type == 'issue':
-            state = data.get('state', 'unknown')
-        elif item_type == 'pr':
-            state = data.get('state', 'unknown')
-            if data.get('draft', False):
-                state = 'draft'
-            elif data.get('merged_at', None) is not None:
-                state = 'merged'
-
-        labels = [{'name': label['name'], 'color': label['color']} for label in data.get('labels', [])]
-        title = data.get('title', 'unknown')
-        return state, labels, title
-
-    def fetch_discussion_status(self, owner, repo, number, headers, graphql_url):
-        query = """
-        query($owner: String!, $repo: String!, $number: Int!) {
-            repository(owner: $owner, name: $repo) {
-                discussion(number: $number) {
-                    title
-                    isAnswered
-                    labels(first: 10) {
-                        nodes {
-                            name
-                            color
-                        }
-                    }
-                }
-            }
-        }
-        """
-        variables = {
-            "owner": owner,
-            "repo": repo,
-            "number": int(number)
-        }
-        payload = {
-            "query": query,
-            "variables": variables
-        }
-        self.logger.debug(f"Fetching discussion from GraphQL API: {graphql_url}")
+        payload = {"query": full_query}
+        self.logger.debug(f"Batch querying GraphQL API: {graphql_url}\n{full_query}")
         try:
             response = requests.post(graphql_url, json=payload, headers=headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error fetching discussion {owner}/{repo}#{number}: {e}")
-            return 'unknown', [], 'unknown'
+            self.logger.error(f"Error fetching data from GraphQL API: {e}")
+            return []
 
         data = response.json()
-        self.logger.debug(data)
-        discussion = data.get('data', {}).get('repository', {}).get('discussion')
-        if discussion is None:
-            self.logger.error(f"No discussion data found for {owner}/{repo}#{number}")
-            return 'unknown', [], 'unknown'
+        self.logger.debug(f"GraphQL API response: {data}")
+        return data.get('data', {})
 
-        state = "answered" if discussion.get('isAnswered', False) else "unanswered"
-        title = discussion.get('title', 'unknown')
-        labels = [
-            {'name': label['name'], 'color': label['color']}
-            for label in discussion['labels']['nodes']
-        ]
-        return state, labels, title
-
-    def process_matches(self, markdown, pattern, item_type, icon_map, headers, api_url):
+    def process_matches(self, markdown, pattern, item_type, icon_map, headers, graphql_url, batch_items):
         def replace_match(match):
             full_match = match.group(0)
+            link_text = match.group(1) # Text inside the []
+            link_url = match.group(2) # URL inside the ()
             if self.PROCESSED_MARKER in full_match:
                 return full_match  # Skip already processed content
 
-            link_text = match.group(1) or full_match
-            link_url = match.group(2) or full_match
-            owner, repo, number = re.search(r"([^/]+)/([^/]+)/\w+/(\d+)", link_url).groups()
-            self.logger.debug(f"Processing {item_type}: {owner}/{repo}#{number}")
-            state, labels, title = self.fetch_status(owner, repo, number, item_type, headers, api_url)
+            if link_url is None:
+                self.logger.warning(f"No URL found in match: {full_match}")
+                return full_match
+
+            url_match = re.search(r"([^/]+)/([^/]+)/\w+/(\d+)", link_url)
+            if not url_match:
+                self.logger.warning(f"No matching owner/repo/number in URL: {link_url}")
+                return full_match
+
+            owner, repo, number = url_match.groups()
+            batch_items.append((owner, repo, number, item_type))
+            self.logger.debug(f"Queued {item_type}: {owner}/{repo}#{number}")
+
+            return full_match
+
+        return pattern.sub(replace_match, markdown)
+
+    def replace_batch_items(self, batch_items, markdown, icon_map, headers, graphql_url):
+        query_result = self.query_graphql(batch_items, headers, graphql_url)
+
+        for composite_key, item in query_result.items():
+            if not isinstance(item, dict):
+                continue
+
+            self.logger.debug(f"Processing item: {item}")
+
+            item_type, owner, repo, number = composite_key.split('_')
+            
+            if item_type == 'discussion':
+                state = 'answered' if item.get('isAnswered', False) else 'unanswered'
+            else:
+                state = item.get('state', 'unknown')
+
+            title = item.get('title', 'unknown')
             state_icon = icon_map.get(state, '❓')  # Default to question mark if state is unknown
-            state_name = state.capitalize()
+            labels = item.get('labels', {}).get('nodes', [])
             labels_str = ''.join(
                 f'<span style="background-color: #{label["color"]}; color: #fff; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">{html.escape(label["name"])}</span>'
                 for label in labels
             ) or ''
+            state_name = state.capitalize()
 
-            return f'<span title="{state_name}">{state_icon}</span> [{title}]({link_url}) {labels_str} {self.PROCESSED_MARKER}'
+            link_type = {
+                'pr': 'pull',
+                'issue': 'issues',
+                'discussion': 'discussions'
+            }[item_type]
 
-        return pattern.sub(replace_match, markdown)
+            link_text = f"[{title}]"
+            link_url = f"https://{owner}/{repo}/{link_type}/{number}"
+            item_info = f'<span title="{state_name}">{state_icon}</span> {link_text}({link_url}) {labels_str} {self.PROCESSED_MARKER}'
+
+            # Ensure the item_id is correctly identified to be replaced in the markdown
+            item_id = f"{owner}/{repo}/{link_type}/{number}"
+            markdown = markdown.replace(link_text, item_info)
+
+        batch_items.clear()
+        self.logger.debug(f"Markdown after replacements: {markdown}")
+        return markdown
 
     def on_page_markdown(self, markdown, **kwargs):
+        self.batch_limit = self.config.get('batch_limit', 50)
+
         for conf in self.config['configs']:
             token = conf['token']
             headers = {'Authorization': f'token {token}'} if token else {}
@@ -191,17 +196,32 @@ class Issues(BasePlugin):
             api_url = conf['api_url']
             graphql_url = conf.get('graphql_api_url', f"{api_url}/graphql")
 
+            issue_items = []
+            pr_items = []
+            discussion_items = []
+
             # Patterns for plain URLs and markdown links
-            issue_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/issues/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/issues/\d+)')
-            pr_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/pull/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/pull/\d+)')
-            discussion_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/discussions/\d+)\)|(?<!<!--processed-->)({base_url}/[^/]+/[^/]+/discussions/\d+)')
+            issue_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/issues/\d+)\)|({base_url}/[^/]+/[^/]+/issues/\d+)')
+            pr_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/pull/\d+)\)|({base_url}/[^/]+/[^/]+/pull/\d+)')
+            discussion_pattern = re.compile(rf'(?<!<!--processed-->)\[([^\]]*)\]\(({base_url}/[^/]+/[^/]+/discussions/\d+)\)|({base_url}/[^/]+/[^/]+/discussions/\d+)')
 
             # Match Issues
-            markdown = self.process_matches(markdown, issue_pattern, 'issue', self.ISSUE_ICONS, headers, api_url)
+            markdown = self.process_matches(markdown, issue_pattern, 'issue', self.ISSUE_ICONS, headers, graphql_url, issue_items)
             # Match PRs
-            markdown = self.process_matches(markdown, pr_pattern, 'pr', self.PR_ICONS, headers, api_url)
+            markdown = self.process_matches(markdown, pr_pattern, 'pr', self.PR_ICONS, headers, graphql_url, pr_items)
             # Match Discussions
-            markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers, graphql_url)
+            markdown = self.process_matches(markdown, discussion_pattern, 'discussion', self.DISCUSSION_ICONS, headers, graphql_url, discussion_items)
+
+            # Process remaining items
+            if issue_items:
+                self.logger.debug("Processing remaining issue items")
+                markdown = self.replace_batch_items(issue_items, markdown, self.ISSUE_ICONS, headers, graphql_url)
+            if pr_items:
+                self.logger.debug("Processing remaining PR items")
+                markdown = self.replace_batch_items(pr_items, markdown, self.PR_ICONS, headers, graphql_url)
+            if discussion_items:
+                self.logger.debug("Processing remaining discussion items")
+                markdown = self.replace_batch_items(discussion_items, markdown, self.DISCUSSION_ICONS, headers, graphql_url)
 
         return markdown
 

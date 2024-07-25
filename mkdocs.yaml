@@ -3,11 +3,13 @@ site_name: One
 plugins:
     - search
     - mkdocs-issues-plugin:
-        log_level: "INFO"  # "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        log_level: "DEBUG"  # "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+        batch_limit: 50  # Configurable batch limit for GraphQL queries
         configs:
           - service: 'github'
             base_url: 'https://github.com'
             api_url: 'https://api.github.com'
+            graphql_api_url: 'https://api.github.com/graphql'
             token: '$GITHUB_TOKEN_PUBLIC'
 
 theme:
